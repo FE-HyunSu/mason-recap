@@ -3,6 +3,22 @@
 이 프로젝트는 [Keep a Changelog](https://keepachangelog.com/) 형식을 따르려 하며,
 버전은 태그 기반([릴리스 체크리스트](./README.md#릴리스-체크리스트-태그-기반-버전-관리) 참고)으로 관리한다.
 
+## [0.1.7] - 2026-09-15
+
+### Changed
+
+- **리포트 가독성 개선 + "프롬프트 문구 → 트리거" 매핑 추가.** 기존 리포트는 실행 흐름과
+  Skill/지침 판정 근거를 한 문단에 욱여넣어 읽기 어려웠다. `/mason-recap:chat`,
+  `/mason-recap:all` 출력 형식을 시간순 불릿(실행 흐름)과 별도 표(트리거 매핑)로
+  분리했다. 표는 프롬프트의 어떤 문구가 어떤 Skill/지침(Rule)/Tool을 유발했다고 보이는지,
+  그리고 그 판정 등급(confirmed/strongly-inferred/weakly-inferred/not-observed)을
+  근거 문구와 함께 보여준다.
+- `decision-analysis` Skill에 등급 → 근사 확신도(%) 변환 규칙을 추가했다
+  (confirmed=90–100%, strongly-inferred=60–89%, weakly-inferred=20–59%,
+  not-observed=0%, 모두 "근사"). mason-recap는 Claude의 내부 판단 확률에 접근할 수
+  없으므로, 이 %는 실측값이 아니라 4단계 등급을 시각화한 근사 구간이라는 점을 리포트에
+  항상 함께 명시하도록 강제했다 — % 단독 표기는 금지.
+
 ## [0.1.6] - 2026-09-15
 
 ### Changed

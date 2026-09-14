@@ -38,8 +38,9 @@ allowed-tools: Bash, Read
    을 집계한다.
 
 4. `plugins/mason-recap/skills/decision-analysis/SKILL.md`의 Skill 활성화 증거 등급
-   (confirmed / strongly-inferred / weakly-inferred / not-observed)을 참고하여, 세션 전체에서
-   관찰된 Skill 적용 여부를 턴 단위로 추정한다.
+   (confirmed / strongly-inferred / weakly-inferred / not-observed), 등급→근사 확신도(%)
+   변환, 프롬프트 문구→트리거 매핑 규칙을 참고하여, 세션 전체에서 관찰된 Skill/지침 적용
+   여부를 턴 단위로 추정한다.
 
 5. 로그만으로 확인할 수 없는 부분(예: `promptId`가 없어 시간 구간으로만 연결된 이벤트, 아직
    transcript에 반영되지 않았을 수 있는 항목)은 반드시 `unknown` 또는 명시적 한계로 표시한다.
@@ -60,13 +61,24 @@ allowed-tools: Bash, Read
 ## 턴 1
 > "<프롬프트 1 원문 또는 핵심 요약>"
 
-<이 턴에서 관찰된 것을 간결하게 서술한다 — 호출된 Tool, 수정한 파일, Subagent 사용,
-실패 여부, Skill 적용 판정 등. 각 문장에 (observed)/(inferred)/(unknown) 태그를 붙인다.>
+- <호출된 Tool, 수정한 파일, Subagent 사용, 실패 여부 등을 짧은 불릿으로> (observed/inferred/unknown)
+
+**프롬프트 문구 → 트리거 매핑**
+
+| 근거 문구 | 트리거 | 종류 | 등급 (근사 %) |
+|---|---|---|---|
+| "<해당 부분>" 또는 "특정 문구 없음" | <Skill/지침/Tool> | Skill / 지침(Rule) / Tool | <등급> (~<%>, 근사) |
 
 ## 턴 2
 > "<프롬프트 2>"
 
-<설명>
+- <설명> (observed/inferred/unknown)
+
+**프롬프트 문구 → 트리거 매핑**
+
+| 근거 문구 | 트리거 | 종류 | 등급 (근사 %) |
+|---|---|---|---|
+| ... | ... | ... | ... |
 
 <!-- 관찰된 턴 수만큼 "## 턴 N" 블록을 반복한다 -->
 
@@ -81,5 +93,7 @@ allowed-tools: Bash, Read
 ## 한계
 
 이 리포트는 실행 증거를 기반으로 재구성한 분석이며
-Claude의 비공개 내부 사고과정이 아니다.
+Claude의 비공개 내부 사고과정이 아니다. 각 턴의 트리거 매핑 표에 표시된 %는 실측 확률이
+아니라 confirmed/strongly-inferred/weakly-inferred/not-observed 등급을 근사 시각화한
+값이다.
 ```
