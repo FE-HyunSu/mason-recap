@@ -7,7 +7,7 @@ allowed-tools: Bash, Read
 # 목표
 
 가장 최근에 완료된 사용자 턴(들)에 대해, `.mason-recap/events/`에 기록된 로그만을 근거로
-실행 과정을 재구성한다. 인자를 주지 않으면 가장 최근 턴 1개, 숫자를 주면(`/mason-recap:1 3`
+실행 과정을 재구성한다. 인자를 주지 않으면 가장 최근 턴 1개, 숫자를 주면(`/mason-recap:chat 3`
 처럼) 그 개수만큼의 최근 턴을 시간순으로 보여준다.
 
 **이 명령은 Claude의 비공개 chain-of-thought를 조회하거나 요구하지 않는다.** 오직 Hook과
