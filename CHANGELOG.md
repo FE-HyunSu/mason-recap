@@ -3,12 +3,23 @@
 이 프로젝트는 [Keep a Changelog](https://keepachangelog.com/) 형식을 따르려 하며,
 버전은 태그 기반([릴리스 체크리스트](./README.md#릴리스-체크리스트-태그-기반-버전-관리) 참고)으로 관리한다.
 
+## [0.1.6] - 2026-09-15
+
+### Changed
+
+- **Command 이름을 `/mason-recap:1`에서 `/mason-recap:chat`으로 바꿨다.** 실제 설치본으로
+  테스트해보니, 명령어 이름이 숫자 `1`이면서 동시에 "몇 턴을 볼지"도 숫자 인자로 받다
+  보니 `/mason-recap:2`처럼 개수를 명령어 이름으로 착각하기 쉽다는 문제가 드러났다
+  (실제로 그렇게 시도했다가 "Unknown command"를 겪음). 명령어 이름을 인자와 겹치지 않는
+  `chat`으로 바꿔 `/mason-recap:chat`(최근 1턴), `/mason-recap:chat 3`(최근 3턴)처럼
+  쓰도록 했다. 동작(인자 처리, 기본값 등)은 그대로다.
+
 ## [0.1.5] - 2026-09-12
 
 ### Added
 
-- **`/mason-recap:1`이 이제 선택적으로 숫자 인자를 받는다.** 인자 없이 `/mason-recap:1`은
-  기존과 동일하게 최근 1턴만 보여주고, `/mason-recap:1 3`처럼 숫자를 주면 최근 N턴을
+- **`/mason-recap:chat`이 이제 선택적으로 숫자 인자를 받는다.** 인자 없이 `/mason-recap:chat`은
+  기존과 동일하게 최근 1턴만 보여주고, `/mason-recap:chat 3`처럼 숫자를 주면 최근 N턴을
   시간순으로 보여준다. `read-events.js`에 `findLastPrompts(events, n)`과 새 CLI
   서브커맨드 `last-turns [n]`을 추가했다(기존 `last-turn` 서브커맨드는 `last-turns`로
   대체됨). 요청한 개수가 로그에 있는 턴 수보다 많으면 있는 만큼만 반환하고, 잘못된
@@ -18,7 +29,7 @@
 
 ### Changed
 
-- **Command 이름을 더 짧게 바꿨다**: `/mason-recap:inspect-last` → `/mason-recap:1`,
+- **Command 이름을 더 짧게 바꿨다**: `/mason-recap:inspect-last` → `/mason-recap:chat`,
   `/mason-recap:inspect-session` → `/mason-recap:all` (`/mason-recap:status`는 그대로
   유지). 기존 이름이 타이핑하기엔 너무 길다는 피드백을 반영했다. 순수 숫자(`1`)로만
   이루어진 command 파일명이 실제로 유효한 slash command로 동작하는지는 문서로 확신할
@@ -73,7 +84,7 @@
 
 ### Changed
 
-- `/mason-recap:1`, `/mason-recap:all`의 출력 포맷을
+- `/mason-recap:chat`, `/mason-recap:all`의 출력 포맷을
   고정된 8개 h2 섹션 방식에서, "사용자 프롬프트 한 줄 인용 → 그 턴에 대한 설명 → 다음
   프롬프트" 순서로 이어지는 내러티브 스타일로 변경했다(가독성 개선 피드백 반영).
   `observed`/`inferred`/`unknown` 태그와 Skill/Rule 적용 등급 구분은 그대로 유지된다.
@@ -102,7 +113,7 @@
   Token, Authorization/Cookie 헤더, 비밀번호, `.env` 관련 경로, PEM/Private Key,
   AWS/GitHub/Anthropic/OpenAI 토큰 패턴 등.
 - 로그 조회 CLI(`scripts/read-events.js`)와 로그 회전(`scripts/rotate-logs.js`).
-- `/mason-recap:1`, `/mason-recap:all`, `/mason-recap:status`
+- `/mason-recap:chat`, `/mason-recap:all`, `/mason-recap:status`
   Slash Command.
 - `decision-analysis` Skill: observed/inferred/unknown 구분과 Skill/Rule 적용 여부
   4단계 증거 등급(confirmed/strongly-inferred/weakly-inferred/not-observed)을 정의.
