@@ -42,9 +42,14 @@ allowed-tools: Bash, Read
    을 집계한다.
 
 4. `plugins/mason-recap/skills/decision-analysis/SKILL.md`의 Skill 활성화 증거 등급
-   (confirmed / strongly-inferred / weakly-inferred / not-observed), 등급→근사 확신도(%)
+   (confirmed / strongly-inferred / weakly-inferred / not-observed), 등급→참고용 수치
    변환, 프롬프트 문구→트리거 매핑 규칙을 참고하여, 세션 전체에서 관찰된 Skill/지침 적용
-   여부를 턴 단위로 추정한다.
+   여부를 턴 단위로 추정한다. 트리거 매핑 표의 not-observed는 %를 쓰지 않고 "알수없음"
+   이라고만 적는다 — "0%"는 "관여하지 않았음을 확인함"으로 오해되기 쉽다. 표는
+   `SKILL.md`의 "트리거 표기 형식"과 "표 가독성 규칙"을 그대로 따른다 — 트리거 칸에는
+   `(Skill: 이름)` / `(Rule: 이름)` / `(Tool: tool_name)`처럼 종류를 이름 앞에 괄호로
+   붙여 한 칸에 표시하고(별도 "종류" 열을 두지 않음), 근거 문구는 약 30자 내외로
+   축약하며, 셀 안에서 줄을 바꿔야 하면 raw newline 대신 `<br>`을 쓴다.
 
 5. 로그만으로 확인할 수 없는 부분(예: `promptId`가 없어 시간 구간으로만 연결된 이벤트, 아직
    transcript에 반영되지 않았을 수 있는 항목)은 반드시 `unknown` 또는 명시적 한계로 표시한다.
@@ -69,9 +74,9 @@ allowed-tools: Bash, Read
 
 **프롬프트 문구 → 트리거 매핑**
 
-| 근거 문구 | 트리거 | 종류 | 등급 (근사 %) |
-|---|---|---|---|
-| "<해당 부분>" 또는 "특정 문구 없음" | <Skill/지침/Tool> | Skill / 지침(Rule) / Tool | <등급> (~<%>, 근사) |
+| 근거 문구 | 트리거 | 등급 (참고용 수치) |
+|---|---|---|
+| "<해당 부분(약 30자 내외로 축약)>" 또는 "특정 문구 없음" | (Skill: \<이름>) 또는 (Rule: \<파일명>) 또는 (Tool: \<tool_name>) | <confirmed/strongly-inferred/weakly-inferred> (~<%>, 참고용) 또는 not-observed (알수없음) |
 
 ## 턴 2
 > "<프롬프트 2>"
@@ -80,9 +85,9 @@ allowed-tools: Bash, Read
 
 **프롬프트 문구 → 트리거 매핑**
 
-| 근거 문구 | 트리거 | 종류 | 등급 (근사 %) |
-|---|---|---|---|
-| ... | ... | ... | ... |
+| 근거 문구 | 트리거 | 등급 (참고용 수치) |
+|---|---|---|
+| ... | ... | ... |
 
 <!-- 관찰된 턴 수만큼 "## 턴 N" 블록을 반복한다 -->
 
@@ -98,6 +103,6 @@ allowed-tools: Bash, Read
 
 이 리포트는 실행 증거를 기반으로 재구성한 분석이며
 Claude의 비공개 내부 사고과정이 아니다. 각 턴의 트리거 매핑 표에 표시된 %는 실측 확률이
-아니라 confirmed/strongly-inferred/weakly-inferred/not-observed 등급을 근사 시각화한
-값이다.
+아니라 confirmed/strongly-inferred/weakly-inferred 등급을 참고용으로 시각화한 값이다.
+not-observed는 판단 근거 자체가 없다는 뜻이라 수치 대신 '알수없음'으로 표기한다.
 ```
