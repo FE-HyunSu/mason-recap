@@ -13,8 +13,11 @@ const {
   eventsForSession,
   findLastPrompt,
   findLastPrompts,
+  listPrompts,
+  findPromptBySessionAndTimestamp,
   eventsForTurn,
   buildStatus,
+  isMasonRecapInvocation,
 } = require('../plugins/mason-recap/scripts/read-events')
 
 function makeTempDir() {
@@ -117,11 +120,68 @@ test('findLastPrompts falls back to 1 for an invalid count (zero, negative, non-
   }
 })
 
+test('isMasonRecapInvocation recognizes a /mason-recap: slash command as the prompt text', () => {
+  assert.equal(isMasonRecapInvocation({ data: { prompt: '/mason-recap:latest 2' } }), true)
+  assert.equal(isMasonRecapInvocation({ data: { prompt: '  /mason-recap:all' } }), true)
+  assert.equal(isMasonRecapInvocation({ data: { prompt: 'fix the off-by-one bug in utils.js' } }), false)
+  assert.equal(isMasonRecapInvocation({ data: {} }), false)
+  assert.equal(isMasonRecapInvocation({}), false)
+})
+
+test('findLastPrompts excludes the plugin\'s own /mason-recap: invocations from the turn list', () => {
+  const events = [
+    { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:00:00.000Z', data: { prompt: 'first real turn' } },
+    { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:10:00.000Z', data: { prompt: 'second real turn' } },
+    { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:20:00.000Z', data: { prompt: '/mason-recap:latest 2' } },
+  ]
+  const last2 = findLastPrompts(events, 2)
+  assert.equal(last2.length, 2)
+  assert.equal(last2[0].data.prompt, 'first real turn')
+  assert.equal(last2[1].data.prompt, 'second real turn')
+})
+
 test('findLastPrompts returns fewer than requested when the log has fewer turns', () => {
   const events = [{ sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:00:00.000Z', data: { prompt: 'only' } }]
   const result = findLastPrompts(events, 5)
   assert.equal(result.length, 1)
   assert.equal(result[0].data.prompt, 'only')
+})
+
+test('listPrompts returns prompts newest-first and excludes /mason-recap: invocations', () => {
+  const events = [
+    { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:00:00.000Z', data: { prompt: 'first' } },
+    { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:10:00.000Z', data: { prompt: '/mason-recap:select' } },
+    { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:20:00.000Z', data: { prompt: 'second' } },
+  ]
+  const result = listPrompts(events, 20)
+  assert.equal(result.length, 2)
+  assert.equal(result[0].data.prompt, 'second')
+  assert.equal(result[1].data.prompt, 'first')
+})
+
+test('listPrompts defaults to a pool of 20 and falls back for an invalid count', () => {
+  const events = Array.from({ length: 3 }, (_, i) => ({
+    sessionId: 'a',
+    event: 'UserPromptSubmit',
+    timestamp: `2026-01-01T00:0${i}:00.000Z`,
+    data: { prompt: `turn ${i}` },
+  }))
+  for (const badCount of [0, -3, NaN, undefined]) {
+    const result = listPrompts(events, badCount)
+    assert.equal(result.length, 3)
+    assert.equal(result[0].data.prompt, 'turn 2')
+  }
+})
+
+test('findPromptBySessionAndTimestamp finds the exact turn and returns null otherwise', () => {
+  const events = [
+    { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:00:00.000Z', data: { prompt: 'first' } },
+    { sessionId: 'b', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:00:00.000Z', data: { prompt: 'same timestamp, other session' } },
+  ]
+  const found = findPromptBySessionAndTimestamp(events, 'a', '2026-01-01T00:00:00.000Z')
+  assert.equal(found.data.prompt, 'first')
+  assert.equal(findPromptBySessionAndTimestamp(events, 'a', '2026-01-01T00:99:00.000Z'), null)
+  assert.equal(findPromptBySessionAndTimestamp(events, 'nonexistent', '2026-01-01T00:00:00.000Z'), null)
 })
 
 test('CLI: last-turns [n] reports requestedCount/returnedCount and turns in chronological order', () => {
@@ -133,6 +193,8 @@ test('CLI: last-turns [n] reports requestedCount/returnedCount and turns in chro
       { schemaVersion: 1, timestamp: '2026-01-01T00:00:01.000Z', event: 'Stop', sessionId: 'sess-a', promptId: 'p1', data: {} },
       { schemaVersion: 1, timestamp: '2026-01-01T00:01:00.000Z', event: 'UserPromptSubmit', sessionId: 'sess-a', promptId: 'p2', data: { prompt: 'second' } },
       { schemaVersion: 1, timestamp: '2026-01-01T00:01:01.000Z', event: 'Stop', sessionId: 'sess-a', promptId: 'p2', data: {} },
+      // The invocation of /mason-recap:latest itself must never be counted as a turn.
+      { schemaVersion: 1, timestamp: '2026-01-01T00:02:00.000Z', event: 'UserPromptSubmit', sessionId: 'sess-a', promptId: 'p3', data: { prompt: '/mason-recap:latest 2' } },
     ])
 
     const scriptPath = path.join(__dirname, '..', 'plugins', 'mason-recap', 'scripts', 'read-events.js')
@@ -157,6 +219,65 @@ test('CLI: last-turns [n] reports requestedCount/returnedCount and turns in chro
     assert.equal(parsed1.requestedCount, 1)
     assert.equal(parsed1.returnedCount, 1)
     assert.equal(parsed1.turns[0].prompt.data.prompt, 'second')
+  } finally {
+    cleanup(dir)
+  }
+})
+
+test('CLI: list-prompts [n] returns prompts newest-first with totalAvailable, excluding /mason-recap: invocations', () => {
+  const dir = makeTempDir()
+  try {
+    fs.mkdirSync(path.join(dir, '.mason-recap', 'events'), { recursive: true })
+    writeEventsFile(dir, path.join('.mason-recap', 'events', 'sess-a.jsonl'), [
+      { schemaVersion: 1, timestamp: '2026-01-01T00:00:00.000Z', event: 'UserPromptSubmit', sessionId: 'sess-a', promptId: 'p1', data: { prompt: 'first' } },
+      { schemaVersion: 1, timestamp: '2026-01-01T00:01:00.000Z', event: 'UserPromptSubmit', sessionId: 'sess-a', promptId: 'p2', data: { prompt: 'second' } },
+      { schemaVersion: 1, timestamp: '2026-01-01T00:02:00.000Z', event: 'UserPromptSubmit', sessionId: 'sess-a', promptId: 'p3', data: { prompt: '/mason-recap:select' } },
+    ])
+
+    const scriptPath = path.join(__dirname, '..', 'plugins', 'mason-recap', 'scripts', 'read-events.js')
+
+    const result = spawnSync(process.execPath, [scriptPath, 'list-prompts', '10'], {
+      encoding: 'utf8',
+      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+    })
+    const parsed = JSON.parse(result.stdout)
+    assert.equal(parsed.requestedCount, 10)
+    assert.equal(parsed.returnedCount, 2)
+    assert.equal(parsed.totalAvailable, 2)
+    assert.equal(parsed.prompts[0].data.prompt, 'second')
+    assert.equal(parsed.prompts[1].data.prompt, 'first')
+  } finally {
+    cleanup(dir)
+  }
+})
+
+test('CLI: turn <sessionId> <timestamp> returns the correlated bundle for that exact prompt, or an error if not found', () => {
+  const dir = makeTempDir()
+  try {
+    fs.mkdirSync(path.join(dir, '.mason-recap', 'events'), { recursive: true })
+    writeEventsFile(dir, path.join('.mason-recap', 'events', 'sess-a.jsonl'), [
+      { schemaVersion: 1, timestamp: '2026-01-01T00:00:00.000Z', event: 'UserPromptSubmit', sessionId: 'sess-a', promptId: 'p1', data: { prompt: 'first' } },
+      { schemaVersion: 1, timestamp: '2026-01-01T00:00:01.000Z', event: 'PreToolUse', sessionId: 'sess-a', promptId: 'p1', data: { toolName: 'Bash' } },
+      { schemaVersion: 1, timestamp: '2026-01-01T00:00:02.000Z', event: 'Stop', sessionId: 'sess-a', promptId: 'p1', data: {} },
+    ])
+
+    const scriptPath = path.join(__dirname, '..', 'plugins', 'mason-recap', 'scripts', 'read-events.js')
+
+    const found = spawnSync(process.execPath, [scriptPath, 'turn', 'sess-a', '2026-01-01T00:00:00.000Z'], {
+      encoding: 'utf8',
+      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+    })
+    const parsedFound = JSON.parse(found.stdout)
+    assert.equal(parsedFound.prompt.data.prompt, 'first')
+    assert.equal(parsedFound.promptIdCorrelated.length, 2) // PreToolUse + Stop
+
+    const notFound = spawnSync(process.execPath, [scriptPath, 'turn', 'sess-a', '2026-01-01T09:99:00.000Z'], {
+      encoding: 'utf8',
+      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+    })
+    const parsedNotFound = JSON.parse(notFound.stdout)
+    assert.ok(parsedNotFound.error)
+    assert.equal(notFound.status, 1)
   } finally {
     cleanup(dir)
   }

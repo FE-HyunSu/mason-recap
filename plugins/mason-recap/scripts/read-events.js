@@ -9,6 +9,8 @@
  *   node "${CLAUDE_PLUGIN_ROOT}/scripts/read-events.js" sessions
  *   node "${CLAUDE_PLUGIN_ROOT}/scripts/read-events.js" session <sessionId>
  *   node "${CLAUDE_PLUGIN_ROOT}/scripts/read-events.js" last-turns [n]
+ *   node "${CLAUDE_PLUGIN_ROOT}/scripts/read-events.js" list-prompts [n]
+ *   node "${CLAUDE_PLUGIN_ROOT}/scripts/read-events.js" turn <sessionId> <timestamp>
  *
  * Unlike capture-event.js, this script is allowed to print to stdout (it is
  * not a hook, so there is no risk of its output being silently injected
@@ -85,6 +87,17 @@ function byTimestampAsc(a, b) {
   return ta < tb ? -1 : ta > tb ? 1 : 0
 }
 
+// A UserPromptSubmit whose prompt text is itself an invocation of one of this
+// plugin's own slash commands (e.g. "/mason-recap:latest 2") is a request to
+// *produce* a report, not a turn to report on — it should never show up as
+// one of the "last N turns" being analyzed.
+const MASON_RECAP_INVOCATION_PATTERN = /^\s*\/mason-recap:/i
+
+function isMasonRecapInvocation(promptEvent) {
+  const text = promptEvent && promptEvent.data && typeof promptEvent.data.prompt === 'string' ? promptEvent.data.prompt : ''
+  return MASON_RECAP_INVOCATION_PATTERN.test(text)
+}
+
 function listSessions(events) {
   const bySession = new Map()
   for (const ev of events) {
@@ -116,7 +129,10 @@ function eventsForSession(events, sessionId) {
  */
 function findLastPrompts(events, n) {
   const count = Number.isFinite(n) && n > 0 ? Math.floor(n) : 1
-  const prompts = events.filter((ev) => ev.event === 'UserPromptSubmit').sort(byTimestampAsc)
+  const prompts = events
+    .filter((ev) => ev.event === 'UserPromptSubmit')
+    .filter((ev) => !isMasonRecapInvocation(ev))
+    .sort(byTimestampAsc)
   return prompts.slice(-count)
 }
 
@@ -124,6 +140,36 @@ function findLastPrompts(events, n) {
 function findLastPrompt(events) {
   const prompts = findLastPrompts(events, 1)
   return prompts.length ? prompts[0] : null
+}
+
+/**
+ * Newest-first list of observed UserPromptSubmit events across all sessions,
+ * for turn *browsing* (e.g. `/mason-recap:select` letting the user pick one
+ * to analyze) — as opposed to `findLastPrompts`, which returns turns already
+ * chosen for direct analysis, oldest-first. Excludes this plugin's own
+ * `/mason-recap:*` invocations, same as `findLastPrompts`. `n` defaults to 20
+ * and is coerced to a positive integer, same fallback rule as elsewhere.
+ */
+function listPrompts(events, n) {
+  const count = Number.isFinite(n) && n > 0 ? Math.floor(n) : 20
+  const prompts = events
+    .filter((ev) => ev.event === 'UserPromptSubmit')
+    .filter((ev) => !isMasonRecapInvocation(ev))
+    .sort(byTimestampAsc)
+  return prompts.slice(-count).reverse()
+}
+
+/**
+ * Find the exact UserPromptSubmit event identified by (sessionId, timestamp)
+ * — the pair a caller gets back from `listPrompts`/`list-prompts` and uses to
+ * request the full turn for one specifically chosen prompt.
+ */
+function findPromptBySessionAndTimestamp(events, sessionId, timestamp) {
+  return (
+    events.find(
+      (ev) => ev.event === 'UserPromptSubmit' && (ev.sessionId || 'unknown-session') === sessionId && ev.timestamp === timestamp
+    ) || null
+  )
 }
 
 /**
@@ -232,7 +278,7 @@ function printJSON(value) {
 }
 
 function main() {
-  const [, , subcommand, arg] = process.argv
+  const [, , subcommand, arg, arg2] = process.argv
   const projectRoot = resolveProjectRootForQuery()
 
   if (!projectRoot) {
@@ -275,10 +321,42 @@ function main() {
       printJSON({ requestedCount: Number.isFinite(requestedCount) && requestedCount > 0 ? Math.floor(requestedCount) : 1, returnedCount: turns.length, turns })
       return
     }
+    case 'list-prompts': {
+      // arg is the requested pool size as a string; anything that doesn't
+      // parse to a positive integer falls back to 20 inside listPrompts.
+      const requestedCount = arg ? parseInt(arg, 10) : 20
+      const events = readAllEvents(paths.events)
+      const totalAvailable = events.filter((ev) => ev.event === 'UserPromptSubmit' && !isMasonRecapInvocation(ev)).length
+      const prompts = listPrompts(events, requestedCount)
+      printJSON({
+        requestedCount: Number.isFinite(requestedCount) && requestedCount > 0 ? Math.floor(requestedCount) : 20,
+        returnedCount: prompts.length,
+        totalAvailable,
+        prompts,
+      })
+      return
+    }
+    case 'turn': {
+      if (!arg || !arg2) {
+        printJSON({ error: 'usage: read-events.js turn <sessionId> <timestamp>' })
+        process.exitCode = 1
+        return
+      }
+      const events = readAllEvents(paths.events)
+      const promptEvent = findPromptBySessionAndTimestamp(events, arg, arg2)
+      if (!promptEvent) {
+        printJSON({ error: 'no UserPromptSubmit event found for that sessionId/timestamp pair' })
+        process.exitCode = 1
+        return
+      }
+      const { promptIdCorrelated, timeWindowCorrelated } = eventsForTurn(events, promptEvent)
+      printJSON({ prompt: promptEvent, promptIdCorrelated, timeWindowCorrelated })
+      return
+    }
     default:
       printJSON({
         error: `unknown subcommand: ${subcommand || '(none)'}`,
-        usage: ['status', 'sessions', 'session <sessionId>', 'last-turns [n]'],
+        usage: ['status', 'sessions', 'session <sessionId>', 'last-turns [n]', 'list-prompts [n]', 'turn <sessionId> <timestamp>'],
       })
       process.exitCode = 1
   }
@@ -294,7 +372,10 @@ module.exports = {
   eventsForSession,
   findLastPrompt,
   findLastPrompts,
+  listPrompts,
+  findPromptBySessionAndTimestamp,
   eventsForTurn,
   buildStatus,
+  isMasonRecapInvocation,
   SUPPORTED_HOOK_EVENTS,
 }

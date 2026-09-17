@@ -3,6 +3,35 @@
 이 프로젝트는 [Keep a Changelog](https://keepachangelog.com/) 형식을 따르려 하며,
 버전은 태그 기반([릴리스 체크리스트](./README.md#릴리스-체크리스트-태그-기반-버전-관리) 참고)으로 관리한다.
 
+## [0.1.8] - 2026-09-18
+
+### Added
+
+- **`/mason-recap:select` 커맨드를 추가했다.** `/mason-recap:latest`가 항상 가장 최근
+  턴만 자동으로 고르는 것과 달리, 이 커맨드는 그동안 관찰된 프롬프트 목록을 Claude
+  Code의 `AskUserQuestion` Tool로 선택지처럼 보여주고, 사용자가 직접 고른 프롬프트(턴)
+  하나에 대해 동일한 단일 턴 리포트를 생성한다. 후보 프롬프트 개수는 숫자 인자로 조절할
+  수 있고(기본값 20), 후보가 4개를 넘으면 한 번에 3개씩 보여주면서 "이전 프롬프트 더
+  보기" 선택지로 이어서 넘겨볼 수 있다.
+- `read-events.js`에 이를 뒷받침하는 `list-prompts [n]`(최신순 프롬프트 목록,
+  `/mason-recap:*` 자체 호출은 제외), `turn <sessionId> <timestamp>`(특정 프롬프트
+  하나의 턴 전체를 조회) 서브커맨드를 추가했다.
+
+### Changed
+
+- **Command 이름을 `/mason-recap:chat`에서 `/mason-recap:latest`로 바꿨다.**
+  `/mason-recap:select`가 함께 생기면서, "가장 최근 턴을 본다"는 의미가 이름에 더
+  분명히 드러나도록 했다. 동작(인자 처리, 출력 형식)은 그대로다.
+- **`last-turns`(그리고 `/mason-recap:all`의 턴 목록)가 이 플러그인 자신의
+  `/mason-recap:*` 호출은 더 이상 분석 대상 턴으로 세지 않는다.** 예를 들어
+  `/mason-recap:latest 2`를 실행하면, 그 호출 자체가 "최근 턴" 중 하나로 끼어들어
+  실제로 보고 싶었던 이전 턴을 밀어내던 문제가 있었다 — 리포트 생성 요청은 분석
+  대상이 아니라는 원칙에 따라 수정했다.
+- README.md 상단에 한국어 문서 링크를 제목 바로 아래로 옮겼고, README_ko.md에는 "recap"
+  (recapitulation, 요점 재정리)이라는 이름의 의미를 설명하는 문단을 추가했다. 두 문서
+  모두 위 변경사항(새 리포트 포맷, `/mason-recap:select`, 턴 제외 규칙)을 반영해
+  갱신했다.
+
 ## [0.1.7] - 2026-09-15
 
 ### Changed

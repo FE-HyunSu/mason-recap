@@ -2,6 +2,11 @@
 
 English version: [README.md](./README.md)
 
+**"recap"은 "recapitulation"(요점 재정리)의 줄임말로, 이미 지나간 일을 다시 짚어
+요약·재구성한다는 뜻입니다.** `mason-recap`이라는 이름은, Claude Code가 방금 처리한
+요청의 실행 과정을 별도 LLM 호출 없이 — 이미 설치된 Claude Code 자신이 — 관찰된
+증거만으로 다시 짚어(recap) 설명해준다는 데서 왔습니다.
+
 `mason-recap`는 Claude Code의 실행 과정을 **공식 Hook**을 통해 관찰하고, 그 관찰
 증거만으로 "Claude가 이번 요청을 어떻게 처리했는지"를 재구성하는 오픈소스 Claude Code
 Plugin입니다. 별도 서버나 외부 LLM 호출 없이, 이미 설치된 Claude Code 자신이 로그를 읽고
@@ -117,16 +122,38 @@ claude plugin install mason-recap@mason-recap
 
 ### 사용 방법
 
-**`/mason-recap:chat`** — 가장 최근에 완료된 사용자 턴(들)을 관찰 증거만으로
+**`/mason-recap:latest`** — 가장 최근에 완료된 사용자 턴(들)을 관찰 증거만으로
 재구성한 리포트를 생성합니다. 숫자를 인자로 줄 수 있습니다 — 인자가 없으면 최근 1턴,
 숫자를 주면 그 개수만큼의 최근 턴을 보여줍니다.
 
 ```text
-/mason-recap:chat
-/mason-recap:chat 3
+/mason-recap:latest
+/mason-recap:latest 3
 ```
 
+각 턴의 리포트는 두 부분으로 구성됩니다: 실제로 일어난 일을 시간순 불릿으로 간결하게
+서술한 부분(`observed`/`inferred`/`unknown` 태그 포함), 그리고 프롬프트의 어떤 문구가
+어떤 Skill/지침(Rule)/Tool을 유발한 것으로 보이는지를 증거 등급
+(`confirmed`/`strongly-inferred`/`weakly-inferred`/`not-observed`)과 근사 확신도(%)
+와 함께 보여주는 별도의 **"프롬프트 문구 → 트리거 매핑" 표**입니다. 이 %는 항상 등급
+이름과 함께 표시되며 — mason-recap는 Claude의 내부 판단 확률에 접근하지 않으므로,
+실측 확률이 아니라 4단계 등급을 시각화한 근사값일 뿐입니다. `/mason-recap:latest`(또는
+`/mason-recap:select`/`/mason-recap:all`) 자신을 호출한 턴은 분석 대상 턴 개수에 절대
+포함되지 않습니다.
+
 출력 형식과 예시는 [examples/sample-report.md](./examples/sample-report.md)를 참고해 주세요.
+
+**`/mason-recap:select`** — 항상 가장 최근 턴만 보는 대신, 과거의 특정 프롬프트를
+직접 골라 분석하고 싶을 때 사용합니다. 최근 입력한 프롬프트들을 Claude Code의
+`AskUserQuestion` Tool로 선택지처럼 보여주고, 고른 프롬프트에 대해 동일한 단일 턴
+리포트를 생성합니다. 숫자를 인자로 주면 후보로 보여줄 최근 프롬프트 개수를 조절할 수
+있습니다(기본값 20). 후보가 4개를 넘으면 한 번에 3개씩 보여주고, "이전 프롬프트 더
+보기" 선택지로 계속 넘겨볼 수 있습니다.
+
+```text
+/mason-recap:select
+/mason-recap:select 50
+```
 
 **`/mason-recap:all`** — 현재 세션 전체(턴 목록, Tool 사용 패턴, 실패,
 로드된 지침, Skill 적용 추정 등)를 요약합니다.
@@ -194,11 +221,14 @@ Claude Code는 하나의 요청을 처리하면서 여러 Tool을 호출하고, 
 - Subagent 실행 흔적(유형, 식별자)
 - Claude의 최종 답변(마스킹·길이 제한 적용)
 - 위 사실들을 바탕으로 재구성한, "observed/inferred/unknown"으로 구분된 판단 근거
+- 프롬프트 문구 → 트리거 매핑 표(증거 등급 + 등급별 근사 확신도(%) — 실측 확률 아님, 아래 참고)
 
 ### 확인할 수 없는 정보
 
 - Claude의 비공개 chain-of-thought, 모델 내부 후보 비교 과정
 - 로그에 기록되지 않은 판단 이유(추정은 가능하나 확정할 수 없음)
+- 판단 뒤에 있는 실측 확신 확률 — Hook에는 그런 값 자체가 없습니다. 리포트에 보이는 %는
+  4단계 증거 등급을 시각화한 근사값일 뿐이며, 항상 등급 이름과 함께 표시됩니다
 - 파일의 전체 내용, 원본 diff, Tool 결과 원문 전체(정책상 저장하지 않음)
 - Skill 파일이 컨텍스트에 로드된 것과 실제로 그 Skill의 절차가 적용됐는지의 완전한 구분
   (증거 등급으로만 추정 가능)
