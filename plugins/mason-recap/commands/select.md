@@ -1,0 +1,105 @@
+---
+description: 그동안 입력했던 프롬프트 목록을 보여주고, 사용자가 직접 고른 프롬프트(턴)에 대해 mason-recap가 수집한 관찰 증거(observed)만으로 Mason Recap Report를 생성합니다. 숫자 인자로 몇 개의 최근 프롬프트를 후보로 보여줄지 지정할 수 있습니다(기본값 20).
+argument-hint: "[n]"
+allowed-tools: Bash, Read, AskUserQuestion
+---
+
+# 목표
+
+`/mason-recap:latest`가 "가장 최근 턴"을 자동으로 고르는 것과 달리, 이 명령은 그동안
+관찰된 프롬프트 중 **사용자가 직접 하나를 선택**하게 한 뒤, 그 턴만 분석한다.
+`.mason-recap/events/`에 기록된 로그만을 근거로 하며, Claude의 비공개 chain-of-thought는
+조회하거나 요구하지 않는다.
+
+# 절차
+
+1. 선택 후보가 될 최근 프롬프트 목록을 가져온다. `$ARGUMENTS`가 비어 있으면 20으로
+   취급된다(스크립트가 알아서 기본값 처리).
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/read-events.js" list-prompts "$ARGUMENTS"
+   ```
+
+   반환된 JSON은 `requestedCount`(요청한 후보 개수), `returnedCount`(실제로 반환된 개수),
+   `totalAvailable`(이 프로젝트에 기록된, 선택 가능한 프롬프트 전체 개수 — `returnedCount`
+   보다 클 수 있음), `prompts`(최신순, 즉 배열의 0번째가 가장 최근 프롬프트)로 구성된다.
+   `prompts`의 각 항목은 원본 `UserPromptSubmit` 이벤트이며 `sessionId`, `timestamp`,
+   `data.prompt`를 담고 있다. 이 목록은 이 플러그인 자신의 `/mason-recap:*` 호출은 이미
+   제외하고 반환된다.
+
+   `returnedCount`가 0이면: "선택할 수 있는 과거 프롬프트가 없다"는 사실을 그대로
+   보고하고 중단한다(추측으로 채우지 않는다).
+
+2. **AskUserQuestion으로 프롬프트를 하나 선택하게 한다.** 이 Tool은 질문 하나당 선택지를
+   2~4개까지만 담을 수 있으므로, 아래 규칙으로 나눠서 보여준다:
+
+   - `returnedCount`가 1이면: 고를 필요가 없으므로 AskUserQuestion을 띄우지 않고 그
+     프롬프트를 곧바로 3단계로 넘긴다.
+   - `returnedCount`가 2~4이면: 남은 프롬프트 전부를 선택지로 하는 질문 하나를 띄운다.
+   - `returnedCount`가 4보다 크면: 아직 보여주지 않은 프롬프트 중 앞에서부터 3개를
+     선택지로 하고, 4번째 선택지로 "이전 프롬프트 더 보기"를 추가한 질문을 띄운다.
+     사용자가 "이전 프롬프트 더 보기"를 고르면, 그다음 3개(+필요하면 다시 "이전 프롬프트
+     더 보기")로 새 질문을 이어서 띄운다 — 실제 프롬프트를 선택할 때까지 반복한다. 이미
+     가져온 `prompts` 배열 안에서만 페이지를 넘기며, 별도로 스크립트를 다시 호출하지
+     않는다.
+   - 각 선택지의 `label`은 해당 프롬프트 텍스트를 40자 내외로 축약한 짧은 문구로 쓰고
+     (예: 끝을 "…"으로 자름), `description`에는 타임스탬프와 프롬프트 전문(이미
+     마스킹·길이 제한된 값)을 함께 적어 사용자가 구분할 수 있게 한다.
+   - `totalAvailable`이 `returnedCount`보다 크면(즉 이번에 가져온 목록보다 더 오래된
+     프롬프트가 남아 있으면), 마지막 "이전 프롬프트 더 보기" 이후에도 목록이 끝나면 그
+     사실을 사용자에게 안내한다("이 목록에는 최근 N개만 포함되어 있고, 더 오래된
+     프롬프트가 있다 — 필요하면 `/mason-recap:select <더 큰 숫자>`로 다시 실행해 달라").
+     스스로 더 큰 숫자로 다시 호출하지 않는다.
+
+3. 사용자가 실제 프롬프트를 하나 선택하면, 그 프롬프트 이벤트의 `sessionId`와
+   `timestamp`로 해당 턴 전체를 가져온다.
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/read-events.js" turn "<sessionId>" "<timestamp>"
+   ```
+
+   반환된 JSON은 `/mason-recap:latest`의 `last-turns` 턴 항목과 동일한 구조
+   (`prompt`, `promptIdCorrelated`, `timeWindowCorrelated`)를 가진다. `error` 키가
+   있으면(예: 사용자가 고른 항목과 실제 로그가 어긋난 경우) 그 사실을 그대로 보고하고
+   중단한다.
+
+4. `plugins/mason-recap/skills/decision-analysis/SKILL.md`에 정의된 분석 절차, Skill 활성화
+   증거 등급(confirmed / strongly-inferred / weakly-inferred / not-observed), 등급→근사
+   확신도(%) 변환, 프롬프트 문구→트리거 매핑 규칙을 이 턴에 그대로 적용한다. 이 Skill의
+   절차를 skip하지 말고 각 단계를 실제로 수행한다.
+
+5. 아래 출력 형식으로 보고서를 작성한다. 가독성을 위해 실행 흐름은 긴 문단이 아니라
+   **짧은 시간순 불릿 목록**으로 쓰고, 트리거 판정은 **표(table)**로 분리한다. 각
+   불릿에는 반드시 `(observed)` / `(inferred)` / `(unknown)` 태그를 붙인다. "Claude가
+   이렇게 생각했다"처럼 단정하지 말고, "관찰된 행동을 보면 이렇게 판단한 것으로
+   추정된다"는 식으로만 서술한다. 트리거 매핑 표에 확신도 %를 적을 때는 항상 등급
+   이름과 함께 적고(예: "strongly-inferred (~70%, 근사)"), % 단독으로 쓰지 않는다.
+
+# 출력 형식
+
+```markdown
+# Mason Recap Report (선택한 턴)
+
+> "<선택된 프롬프트 원문 또는 핵심 요약>"
+
+**실행 흐름** (시간순)
+- <행동 1> (observed/inferred/unknown)
+- <행동 2> (observed/inferred/unknown)
+- <최종 답변이 위 행동과 일치하는지> (inferred/unknown)
+
+**프롬프트 문구 → 트리거 매핑**
+
+| 근거 문구 | 트리거 | 종류 | 등급 (근사 %) |
+|---|---|---|---|
+| "<프롬프트 중 해당 부분>" 또는 "특정 문구 없음" | <Skill/지침/Tool 이름> | Skill / 지침(Rule) / Tool | <confirmed/strongly-inferred/weakly-inferred/not-observed> (~<%>, 근사) |
+
+<위 표에 후보가 전혀 없으면 표 대신 "이 턴에서 트리거로 판정할 후보 자체가 관찰되지
+않음(not-observed)"이라고 적는다. 표 아래에 다음 한 줄을 항상 덧붙인다:
+"※ %는 실측 확률이 아니라 등급을 근사 시각화한 값 — Claude의 내부 판단 확률에는 접근할
+수 없음.">
+
+## 한계
+
+이 리포트는 실행 증거를 기반으로 재구성한 분석이며
+Claude의 비공개 내부 사고과정이 아니다. 표의 %는 등급의 근사 표현이며 실측값이 아니다.
+```

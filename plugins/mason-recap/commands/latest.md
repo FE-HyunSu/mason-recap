@@ -7,8 +7,9 @@ allowed-tools: Bash, Read
 # 목표
 
 가장 최근에 완료된 사용자 턴(들)에 대해, `.mason-recap/events/`에 기록된 로그만을 근거로
-실행 과정을 재구성한다. 인자를 주지 않으면 가장 최근 턴 1개, 숫자를 주면(`/mason-recap:chat 3`
-처럼) 그 개수만큼의 최근 턴을 시간순으로 보여준다.
+실행 과정을 재구성한다. 인자를 주지 않으면 가장 최근 턴 1개, 숫자를 주면(`/mason-recap:latest 3`
+처럼) 그 개수만큼의 최근 턴을 시간순으로 보여준다. 최근 턴이 아니라 과거의 특정 턴을
+직접 골라 분석하고 싶으면 `/mason-recap:select`를 대신 사용한다.
 
 **이 명령은 Claude의 비공개 chain-of-thought를 조회하거나 요구하지 않는다.** 오직 Hook과
 transcript에서 관찰 가능한 사실(호출된 Tool, 읽거나 수정한 파일, 실행한 명령, Subagent 활동,
@@ -28,7 +29,10 @@ transcript에서 관찰 가능한 사실(호출된 Tool, 읽거나 수정한 파
    구성된다. 각 턴 항목은 `prompt`(해당 턴의 `UserPromptSubmit` 이벤트),
    `promptIdCorrelated`(같은 `promptId`로 명시적으로 연결된 이벤트 — observed 근거로
    취급 가능), `timeWindowCorrelated`(`promptId`가 없어 시간 구간으로만 연결된 이벤트 —
-   반드시 inferred/약한 근거로 취급)를 담는다.
+   반드시 inferred/약한 근거로 취급)를 담는다. `last-turns`는 프롬프트 텍스트가
+   `/mason-recap:`로 시작하는 턴(이 플러그인 자신의 커맨드를 호출한 턴, 예: 지금 이
+   커맨드를 실행시킨 `/mason-recap:latest 2` 그 자체)을 이미 제외하고 반환한다 — 리포트
+   생성 요청 자체는 분석 대상 턴이 아니기 때문이다.
 
    `turns`가 빈 배열이면, 아직 수집된 로그가 없다는 사실을 그대로 보고하고 중단한다.
    `returnedCount`가 `requestedCount`보다 작으면, 요청한 개수만큼의 턴이 아직 기록되어

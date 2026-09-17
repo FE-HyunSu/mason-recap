@@ -117,10 +117,10 @@ not-observed      → 0%      (근사)
   (unknown)"으로 남긴다.
 
 리포트에서는 이 매핑을 문단이 아니라 표(table)로 제시해 가독성을 확보한다 — 커맨드별
-출력 형식(`/mason-recap:chat`, `/mason-recap:all`)이 표 컬럼을 정의한다.
+출력 형식(`/mason-recap:latest`, `/mason-recap:select`, `/mason-recap:all`)이 표 컬럼을 정의한다.
 
 ## 산출물
 
-이 절차의 결과는 호출한 커맨드(`/mason-recap:chat`, `/mason-recap:all`)가
+이 절차의 결과는 호출한 커맨드(`/mason-recap:latest`, `/mason-recap:select`, `/mason-recap:all`)가
 정의한 출력 형식에 맞춰 작성한다. 이 Skill 자체는 형식을 강제하지 않고 분석 절차와 등급
 기준만 제공한다.

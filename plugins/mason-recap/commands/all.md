@@ -25,6 +25,10 @@ allowed-tools: Bash, Read
 2. 이벤트를 시간순으로 정렬해 `UserPromptSubmit` 기준으로 턴을 구분한다. **턴은 반드시
    프롬프트가 입력된 순서대로 하나씩 나열한다** — 먼저 그 턴의 사용자 프롬프트를 인용하고,
    바로 그 아래에 그 턴에 대한 설명을 붙인 다음, 다음 턴으로 넘어간다(아래 출력 형식 참고).
+   **단, `UserPromptSubmit.data.prompt`가 `/mason-recap:`로 시작하는 턴(이 플러그인
+   자신의 커맨드를 호출한 턴, 예: `/mason-recap:all`, `/mason-recap:latest 2`)은 턴
+   목록에서 제외한다** — 이는 분석 대상이 되는 사용자 요청이 아니라 리포트 생성 요청
+   자체이기 때문이다.
    각 턴에서:
    - 해당 턴에 속한 `PreToolUse`/`PostToolUse`/`PostToolUseFailure` 이벤트 수
    - 수정된 파일 경로(`PreToolUse`의 `Write`/`Edit`/`NotebookEdit` 이벤트에서 추출)

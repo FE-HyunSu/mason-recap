@@ -1,8 +1,8 @@
 # mason-recap
 
-**mason-recap** is an open-source Claude Code plugin that observes Claude Code's execution through official Hooks and reconstructs how a request was handled — using only observable evidence (prompts, tool calls, file paths, subagent activity, the final answer). It never extracts Claude's private chain-of-thought, makes no network calls, and stores everything locally under your project's `.mason-recap/` directory.
-
 한국어 문서는 [README_ko.md](./README_ko.md)를 참고하세요.
+
+**mason-recap** is an open-source Claude Code plugin that observes Claude Code's execution through official Hooks and reconstructs how a request was handled — using only observable evidence (prompts, tool calls, file paths, subagent activity, the final answer). It never extracts Claude's private chain-of-thought, makes no network calls, and stores everything locally under your project's `.mason-recap/` directory.
 
 ---
 
@@ -99,14 +99,23 @@ claude plugin install mason-recap@mason-recap
 
 ### Commands
 
-**`/mason-recap:chat`** — reconstructs a report of the most recently completed user turn(s), using observed evidence only. Takes an optional number: no argument means the last 1 turn, a number means that many recent turns.
+**`/mason-recap:latest`** — reconstructs a report of the most recently completed user turn(s), using observed evidence only. Takes an optional number: no argument means the last 1 turn, a number means that many recent turns.
 
 ```text
-/mason-recap:chat
-/mason-recap:chat 3
+/mason-recap:latest
+/mason-recap:latest 3
 ```
 
+Each turn's report has two parts: a short chronological bullet list of what actually happened (tagged `observed`/`inferred`/`unknown`), and a separate **prompt-phrase → trigger mapping table** showing which part of your prompt appears to have caused which Skill/rule/tool to fire, together with an evidence grade (`confirmed` / `strongly-inferred` / `weakly-inferred` / `not-observed`) and an approximate confidence-% band. That % is always shown paired with the grade name — it's a visualization of the grade, not a measured probability, since mason-recap has no access to Claude's internal decision process. Invoking `/mason-recap:latest` (or `/mason-recap:select`/`/mason-recap:all`) itself is never counted as one of the analyzed turns.
+
 See [examples/sample-report.md](./examples/sample-report.md) for the output format and a worked example.
+
+**`/mason-recap:select`** — instead of always analyzing the most recent turn, lets you pick which past prompt to analyze. Shows your recent prompts as a multiple-choice question (via Claude Code's `AskUserQuestion` tool) and generates the same single-turn report for whichever one you pick. Takes an optional number for how large a pool of recent prompts to offer (default 20); if there are more than 4 candidates, they're paged 3-at-a-time with a "show older prompts" option.
+
+```text
+/mason-recap:select
+/mason-recap:select 50
+```
 
 **`/mason-recap:all`** — summarizes the entire current session: turn list, tool usage patterns, failures, loaded instructions, estimated Skill usage, and so on.
 
@@ -162,11 +171,13 @@ While handling one request, Claude Code calls multiple tools, reads or edits fil
 - Subagent execution traces (type, identifier)
 - Claude's final answer (masked, length-limited)
 - Reconstructed reasoning built from the above, explicitly labeled `observed` / `inferred` / `unknown`
+- A prompt-phrase → trigger mapping table, with an evidence grade and an approximate confidence-% band per grade (never a measured probability — see below)
 
 ### What cannot be confirmed
 
 - Claude's private chain-of-thought, or the model's internal comparison of candidate approaches
 - Any reasoning not reflected in the logs (can be inferred, never confirmed)
+- A real, measured confidence probability behind any judgment — Hooks expose no such value; the %'s shown in reports are an approximate visualization of the four-tier evidence grade, always shown together with the grade name
 - Full file contents, original diffs, or complete raw tool output (not stored, by policy)
 - The full distinction between a Skill file being loaded into context and that Skill's procedure actually having been followed (only estimable via evidence tiers)
 
