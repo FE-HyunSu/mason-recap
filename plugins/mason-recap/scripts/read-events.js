@@ -98,6 +98,18 @@ function isMasonRecapInvocation(promptEvent) {
   return MASON_RECAP_INVOCATION_PATTERN.test(text)
 }
 
+// Claude Code delivers a background Agent's completion as a synthetic
+// <task-notification>...</task-notification> block, routed through the same
+// UserPromptSubmit hook as text a human actually typed. It is not a turn to
+// analyze or a candidate the user should be asked to pick from — filter it
+// out the same way self-invocations are filtered out above.
+const TASK_NOTIFICATION_PATTERN = /^\s*<task-notification>/i
+
+function isTaskNotification(promptEvent) {
+  const text = promptEvent && promptEvent.data && typeof promptEvent.data.prompt === 'string' ? promptEvent.data.prompt : ''
+  return TASK_NOTIFICATION_PATTERN.test(text)
+}
+
 function listSessions(events) {
   const bySession = new Map()
   for (const ev of events) {
@@ -132,6 +144,7 @@ function findLastPrompts(events, n) {
   const prompts = events
     .filter((ev) => ev.event === 'UserPromptSubmit')
     .filter((ev) => !isMasonRecapInvocation(ev))
+    .filter((ev) => !isTaskNotification(ev))
     .sort(byTimestampAsc)
   return prompts.slice(-count)
 }
@@ -155,6 +168,7 @@ function listPrompts(events, n) {
   const prompts = events
     .filter((ev) => ev.event === 'UserPromptSubmit')
     .filter((ev) => !isMasonRecapInvocation(ev))
+    .filter((ev) => !isTaskNotification(ev))
     .sort(byTimestampAsc)
   return prompts.slice(-count).reverse()
 }
@@ -326,7 +340,9 @@ function main() {
       // parse to a positive integer falls back to 20 inside listPrompts.
       const requestedCount = arg ? parseInt(arg, 10) : 20
       const events = readAllEvents(paths.events)
-      const totalAvailable = events.filter((ev) => ev.event === 'UserPromptSubmit' && !isMasonRecapInvocation(ev)).length
+      const totalAvailable = events.filter(
+        (ev) => ev.event === 'UserPromptSubmit' && !isMasonRecapInvocation(ev) && !isTaskNotification(ev)
+      ).length
       const prompts = listPrompts(events, requestedCount)
       printJSON({
         requestedCount: Number.isFinite(requestedCount) && requestedCount > 0 ? Math.floor(requestedCount) : 20,
@@ -377,5 +393,6 @@ module.exports = {
   eventsForTurn,
   buildStatus,
   isMasonRecapInvocation,
+  isTaskNotification,
   SUPPORTED_HOOK_EVENTS,
 }

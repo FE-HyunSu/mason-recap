@@ -18,6 +18,7 @@ const {
   eventsForTurn,
   buildStatus,
   isMasonRecapInvocation,
+  isTaskNotification,
 } = require('../plugins/mason-recap/scripts/read-events')
 
 function makeTempDir() {
@@ -128,11 +129,36 @@ test('isMasonRecapInvocation recognizes a /mason-recap: slash command as the pro
   assert.equal(isMasonRecapInvocation({}), false)
 })
 
+test('isTaskNotification recognizes a background Agent completion notification as the prompt text', () => {
+  assert.equal(isTaskNotification({ data: { prompt: '<task-notification>\n<task-id>abc</task-id>\n</task-notification>' } }), true)
+  assert.equal(isTaskNotification({ data: { prompt: '  <task-notification>...' } }), true)
+  assert.equal(isTaskNotification({ data: { prompt: 'fix the off-by-one bug in utils.js' } }), false)
+  assert.equal(isTaskNotification({ data: {} }), false)
+  assert.equal(isTaskNotification({}), false)
+})
+
 test('findLastPrompts excludes the plugin\'s own /mason-recap: invocations from the turn list', () => {
   const events = [
     { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:00:00.000Z', data: { prompt: 'first real turn' } },
     { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:10:00.000Z', data: { prompt: 'second real turn' } },
     { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:20:00.000Z', data: { prompt: '/mason-recap:latest 2' } },
+  ]
+  const last2 = findLastPrompts(events, 2)
+  assert.equal(last2.length, 2)
+  assert.equal(last2[0].data.prompt, 'first real turn')
+  assert.equal(last2[1].data.prompt, 'second real turn')
+})
+
+test('findLastPrompts excludes background-Agent <task-notification> deliveries from the turn list', () => {
+  const events = [
+    { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:00:00.000Z', data: { prompt: 'first real turn' } },
+    {
+      sessionId: 'a',
+      event: 'UserPromptSubmit',
+      timestamp: '2026-01-01T00:10:00.000Z',
+      data: { prompt: '<task-notification>\n<summary>Agent "x" finished</summary>\n</task-notification>' },
+    },
+    { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:20:00.000Z', data: { prompt: 'second real turn' } },
   ]
   const last2 = findLastPrompts(events, 2)
   assert.equal(last2.length, 2)
@@ -151,6 +177,23 @@ test('listPrompts returns prompts newest-first and excludes /mason-recap: invoca
   const events = [
     { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:00:00.000Z', data: { prompt: 'first' } },
     { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:10:00.000Z', data: { prompt: '/mason-recap:select' } },
+    { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:20:00.000Z', data: { prompt: 'second' } },
+  ]
+  const result = listPrompts(events, 20)
+  assert.equal(result.length, 2)
+  assert.equal(result[0].data.prompt, 'second')
+  assert.equal(result[1].data.prompt, 'first')
+})
+
+test('listPrompts excludes background-Agent <task-notification> deliveries', () => {
+  const events = [
+    { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:00:00.000Z', data: { prompt: 'first' } },
+    {
+      sessionId: 'a',
+      event: 'UserPromptSubmit',
+      timestamp: '2026-01-01T00:10:00.000Z',
+      data: { prompt: '<task-notification>\n<summary>Agent "x" finished</summary>\n</task-notification>' },
+    },
     { sessionId: 'a', event: 'UserPromptSubmit', timestamp: '2026-01-01T00:20:00.000Z', data: { prompt: 'second' } },
   ]
   const result = listPrompts(events, 20)
