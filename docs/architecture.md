@@ -37,7 +37,7 @@ User Prompt
   `/mason-recap:select`는 추가로 `AskUserQuestion` Tool을 사용해 분석 대상 턴을
   사용자가 직접 고르게 한다.
 - **skills/decision-analysis/SKILL.md**: 분석 절차, observed/inferred/unknown 구분 원칙,
-  Skill/Rule 적용 여부 판정 등급(confirmed/strongly-inferred/weakly-inferred/not-observed)을
+  Skill/Rule 적용 여부 판정 등급(확인됨/강한 추정/약한 추정/관찰 안 됨)을
   정의한다. 실제 리포트 형식은 강제하지 않고 각 Command가 정의한다.
 
 ## 왜 분석을 Command/Skill에서 수행하는가

@@ -17,7 +17,7 @@ mason-recap는 관찰 가능한 실행 증거만으로 동작한다. 아래 한�
   그렇다).
 - **Skill 파일 접근과 Skill 활성화가 항상 동일하지 않음**: 파일이 컨텍스트에 노출된
   것과, 그 Skill의 절차가 실제로 적용된 것은 다르다. `decision-analysis` Skill은 이
-  구분을 위해 4단계 증거 등급(confirmed/strongly-inferred/weakly-inferred/not-observed)을
+  구분을 위해 4단계 증거 등급(확인됨/강한 추정/약한 추정/관찰 안 됨)을
   사용하지만, 이 자체도 로그가 명시적 신호(예: 전용 "Skill invoked" 이벤트)를 제공하지
   않는 한 완전히 확실할 수 없다.
 - **Observer의 분석도 모델의 해석이므로 오류 가능**: `/mason-recap:latest` 등이
